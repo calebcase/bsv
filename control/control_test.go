@@ -19,49 +19,49 @@ func TestControl(t *testing.T) {
 	tcs := []TC{
 		// Zero values:
 		{
-			b:   0b0000_0001,
+			b:   0b1000_0000,
 			t:   Data,
 			v:   0,
 			err: false,
 		},
 		{
-			b:   0b0000_0010,
+			b:   0b0100_0000,
 			t:   DataSize,
 			v:   1,
 			err: false,
 		},
 		{
-			b:   0b0000_0100,
+			b:   0b0010_0000,
 			t:   Data1,
 			v:   0,
 			err: false,
 		},
 		{
-			b:   0b0000_1000,
+			b:   0b0001_0000,
 			t:   Data2,
 			v:   0,
 			err: false,
 		},
 		{
-			b:   0b0001_0000,
+			b:   0b0000_1000,
 			t:   Skip,
 			v:   1,
 			err: false,
 		},
 		{
-			b:   0b0010_0000,
+			b:   0b0000_0100,
 			t:   DataSizeSize,
 			v:   1,
 			err: false,
 		},
 		{
-			b:   0b0100_0000,
+			b:   0b0000_0010,
 			t:   SkipSizeSize,
 			v:   1,
 			err: false,
 		},
 		{
-			b:   0b1000_0000,
+			b:   0b0000_0001,
 			t:   Null,
 			v:   0,
 			err: false,
@@ -74,43 +74,43 @@ func TestControl(t *testing.T) {
 		},
 		// Non-zero Values:
 		{
-			b:   0b1010_1011,
+			b:   0b1101_0101,
 			t:   Data,
 			v:   85,
 			err: false,
 		},
 		{
-			b:   0b1010_1010,
+			b:   0b0110_1010,
 			t:   DataSize,
 			v:   43,
 			err: false,
 		},
 		{
-			b:   0b1010_1100,
+			b:   0b0011_0101,
 			t:   Data1,
 			v:   21,
 			err: false,
 		},
 		{
-			b:   0b1010_1000,
+			b:   0b0001_1010,
 			t:   Data2,
 			v:   10,
 			err: false,
 		},
 		{
-			b:   0b1011_0000,
+			b:   0b0000_1101,
 			t:   Skip,
 			v:   6,
 			err: false,
 		},
 		{
-			b:   0b1010_0000,
+			b:   0b0000_0110,
 			t:   DataSizeSize,
 			v:   3,
 			err: false,
 		},
 		{
-			b:   0b1100_0000,
+			b:   0b0000_0011,
 			t:   SkipSizeSize,
 			v:   2,
 			err: false,
@@ -156,14 +156,14 @@ func TestEncode(t *testing.T) {
 				Type: Data,
 				Data: []byte{0b0000_0000}, // 0
 			},
-			data: []byte{0b0000_0001},
+			data: []byte{0b1000_0000},
 		},
 		{
 			blk: &Block{
 				Type: Data,
 				Data: []byte{0b0101_0101}, // 85
 			},
-			data: []byte{0b1010_1011},
+			data: []byte{0b1101_0101},
 		},
 		{
 			blk: &Block{
@@ -175,51 +175,51 @@ func TestEncode(t *testing.T) {
 		{
 			blk: &Block{
 				Type: DataSize,
-				Data: []byte{}, // E.g. zero length string
+				Data: []byte{0x00}, // 0
 			},
-			data: []byte{0b0000_0010},
+			data: []byte{0b0100_0000, 0x00},
 		},
 		{
 			blk: &Block{
 				Type: DataSize,
 				Data: []byte{'a', 'b', 'c', 'd'},
 			},
-			data: []byte{0b0001_0010, 'a', 'b', 'c', 'd'},
+			data: []byte{0b0100_0011, 'a', 'b', 'c', 'd'},
 		},
 		{
 			blk: &Block{
 				Type: Data1,
 				Data: []byte{0x1f, 0xff}, // 8_191
 			},
-			data: []byte{0b1111_1100, 0xff},
+			data: []byte{0b0011_1111, 0xff},
 		},
 		{
 			blk: &Block{
 				Type: Data2,
 				Data: []byte{0x0f, 0xff, 0xff}, // 1_048_575
 			},
-			data: []byte{0b1111_1000, 0xff, 0xff},
+			data: []byte{0b0001_1111, 0xff, 0xff},
 		},
 		{
 			blk: &Block{
 				Type: Skip,
 				Size: 8,
 			},
-			data: []byte{0b1111_0000},
+			data: []byte{0b0000_1111},
 		},
 		{
 			blk: &Block{
 				Type: DataSizeSize,
 				Data: []byte{'a', 'b', 'c', 'd'},
 			},
-			data: []byte{0b0010_0000, 0b0000_0100, 'a', 'b', 'c', 'd'},
+			data: []byte{0b0000_0100, 0b0000_0100, 'a', 'b', 'c', 'd'},
 		},
 		{
 			blk: &Block{
 				Type: SkipSizeSize,
 				Size: 1 << 16, // 65536
 			},
-			data: []byte{0b1100_0000, 0xff, 0xff},
+			data: []byte{0b0000_0011, 0xff, 0xff},
 		},
 	}
 

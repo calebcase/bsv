@@ -11,25 +11,25 @@ type Type = byte
 // Control Block Types
 var (
 	Invalid      Type = 0b0000_0000
-	Data         Type = 0b0000_0001
-	DataSize     Type = 0b0000_0010
-	Data1        Type = 0b0000_0100
-	Data2        Type = 0b0000_1000
-	Skip         Type = 0b0001_0000
-	DataSizeSize Type = 0b0010_0000
-	SkipSizeSize Type = 0b0100_0000
-	Null         Type = 0b1000_0000
+	Data         Type = 0b1000_0000
+	DataSize     Type = 0b0100_0000
+	Data1        Type = 0b0010_0000
+	Data2        Type = 0b0001_0000
+	Skip         Type = 0b0000_1000
+	DataSizeSize Type = 0b0000_0100
+	SkipSizeSize Type = 0b0000_0010
+	Null         Type = 0b0000_0001
 )
 
 // Control Block Masks
 var (
-	dataMask         byte = 0b0000_0001
-	dataSizeMask     byte = 0b0000_0011
-	data1Mask        byte = 0b0000_0111
-	data2Mask        byte = 0b0000_1111
-	skipMask         byte = 0b0001_1111
-	dataSizeSizeMask byte = 0b0011_1111
-	skipSizeSizeMask byte = 0b0111_1111
+	dataMask         byte = 0b1000_0000
+	dataSizeMask     byte = 0b1100_0000
+	data1Mask        byte = 0b1110_0000
+	data2Mask        byte = 0b1111_0000
+	skipMask         byte = 0b1111_1000
+	dataSizeSizeMask byte = 0b1111_1100
+	skipSizeSizeMask byte = 0b1111_1110
 )
 
 // TypeString returns the string name for the type.
@@ -72,7 +72,7 @@ func New(t Type, value uint8) (b byte, err error) {
 			return
 		}
 
-		b = value<<1 | Data
+		b = (^dataMask & value) | Data
 	case DataSize:
 		if value > 63 {
 			err = Error.New("value too large: %d", value)
@@ -80,7 +80,8 @@ func New(t Type, value uint8) (b byte, err error) {
 			return
 		}
 
-		b = value<<2 | DataSize
+		value = value - 1
+		b = (^dataSizeMask & value) | DataSize
 	case Data1:
 		if value > 31 {
 			err = Error.New("value too large: %d", value)
@@ -88,7 +89,7 @@ func New(t Type, value uint8) (b byte, err error) {
 			return
 		}
 
-		b = value<<3 | Data1
+		b = (^data1Mask & value) | Data1
 	case Data2:
 		if value > 15 {
 			err = Error.New("value too large: %d", value)
@@ -96,7 +97,7 @@ func New(t Type, value uint8) (b byte, err error) {
 			return
 		}
 
-		b = value<<4 | Data2
+		b = (^data2Mask & value) | Data2
 	case Skip:
 		if value > 8 {
 			err = Error.New("value too large: %d", value)
@@ -105,7 +106,7 @@ func New(t Type, value uint8) (b byte, err error) {
 		}
 
 		value = value - 1
-		b = value<<5 | Skip
+		b = (^skipMask & value) | Skip
 	case DataSizeSize:
 		if value > 4 {
 			err = Error.New("value too large: %d", value)
@@ -114,7 +115,7 @@ func New(t Type, value uint8) (b byte, err error) {
 		}
 
 		value = value - 1
-		b = value<<6 | DataSizeSize
+		b = (^dataSizeSizeMask & value) | DataSizeSize
 	case SkipSizeSize:
 		if value > 2 {
 			err = Error.New("value too large: %d", value)
@@ -123,7 +124,7 @@ func New(t Type, value uint8) (b byte, err error) {
 		}
 
 		value = value - 1
-		b = value<<7 | SkipSizeSize
+		b = (^skipSizeSizeMask & value) | SkipSizeSize
 	case Null:
 		b = Null
 	}
@@ -134,31 +135,31 @@ func New(t Type, value uint8) (b byte, err error) {
 // Parse returns the control block type and value.
 func Parse(b byte) (t Type, value uint8, err error) {
 	if b&dataMask == Data {
-		v := b & ^dataMask >> 1
+		v := b & ^dataMask
 
 		return Data, v, nil
 	} else if b&dataSizeMask == DataSize {
-		v := b & ^dataSizeMask >> 2
+		v := b & ^dataSizeMask
 
 		return DataSize, v + 1, nil
 	} else if b&data1Mask == Data1 {
-		v := b & ^data1Mask >> 3
+		v := b & ^data1Mask
 
 		return Data1, v, nil
 	} else if b&data2Mask == Data2 {
-		v := b & ^data2Mask >> 4
+		v := b & ^data2Mask
 
 		return Data2, v, nil
 	} else if b&skipMask == Skip {
-		v := b & ^skipMask >> 5
+		v := b & ^skipMask
 
 		return Skip, v + 1, nil
 	} else if b&dataSizeSizeMask == DataSizeSize {
-		v := b & ^dataSizeSizeMask >> 6
+		v := b & ^dataSizeSizeMask
 
 		return DataSizeSize, v + 1, nil
 	} else if b&skipSizeSizeMask == SkipSizeSize {
-		v := b & ^skipSizeSizeMask >> 7
+		v := b & ^skipSizeSizeMask
 
 		return SkipSizeSize, v + 1, nil
 	} else if b == Null {

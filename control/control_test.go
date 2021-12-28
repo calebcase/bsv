@@ -27,7 +27,7 @@ func TestControl(t *testing.T) {
 		{
 			b:   0b0100_0000,
 			t:   DataSize,
-			v:   1,
+			v:   0,
 			err: false,
 		},
 		{
@@ -82,7 +82,7 @@ func TestControl(t *testing.T) {
 		{
 			b:   0b0110_1010,
 			t:   DataSize,
-			v:   43,
+			v:   42,
 			err: false,
 		},
 		{
@@ -144,7 +144,7 @@ func TestControl(t *testing.T) {
 	}
 }
 
-func TestEncode(t *testing.T) {
+func TestEncodeDecode(t *testing.T) {
 	type TC struct {
 		blk  *Block
 		data []byte
@@ -177,14 +177,14 @@ func TestEncode(t *testing.T) {
 				Type: DataSize,
 				Data: []byte{0x00}, // 0
 			},
-			data: []byte{0b0100_0000, 0x00},
+			data: []byte{0b0100_0001, 0x00},
 		},
 		{
 			blk: &Block{
 				Type: DataSize,
 				Data: []byte{'a', 'b', 'c', 'd'},
 			},
-			data: []byte{0b0100_0011, 'a', 'b', 'c', 'd'},
+			data: []byte{0b0100_0100, 'a', 'b', 'c', 'd'},
 		},
 		{
 			blk: &Block{
@@ -211,8 +211,9 @@ func TestEncode(t *testing.T) {
 			blk: &Block{
 				Type: DataSizeSize,
 				Data: []byte{'a', 'b', 'c', 'd'},
+				Size: 4,
 			},
-			data: []byte{0b0000_0100, 0b0000_0100, 'a', 'b', 'c', 'd'},
+			data: []byte{0b0000_0100, 0b0000_0011, 'a', 'b', 'c', 'd'},
 		},
 		{
 			blk: &Block{
@@ -226,10 +227,21 @@ func TestEncode(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(fmt.Sprintf("%s %08b", TypeString(tc.blk.Type), tc.data), func(t *testing.T) {
 			buf := bytes.NewBuffer(nil)
-			enc := NewEncoder(buf)
-			err := enc.Encode(tc.blk)
-			require.NoError(t, err)
-			require.Equal(t, tc.data, buf.Bytes())
+
+			t.Run("encode", func(t *testing.T) {
+				enc := NewEncoder(buf)
+				err := enc.Encode(tc.blk)
+				require.NoError(t, err)
+				require.Equal(t, tc.data, buf.Bytes())
+			})
+
+			t.Run("decode", func(t *testing.T) {
+				dec := NewDecoder(buf)
+				blk := &Block{}
+				err := dec.Decode(blk)
+				require.NoError(t, err)
+				require.Equal(t, tc.blk, blk)
+			})
 		})
 	}
 }

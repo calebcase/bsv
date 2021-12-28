@@ -80,7 +80,6 @@ func New(t Type, value uint8) (b byte, err error) {
 			return
 		}
 
-		value = value - 1
 		b = (^dataSizeMask & value) | DataSize
 	case Data1:
 		if value > 31 {
@@ -141,7 +140,7 @@ func Parse(b byte) (t Type, value uint8, err error) {
 	} else if b&dataSizeMask == DataSize {
 		v := b & ^dataSizeMask
 
-		return DataSize, v + 1, nil
+		return DataSize, v, nil
 	} else if b&data1Mask == Data1 {
 		v := b & ^data1Mask
 
@@ -189,8 +188,17 @@ type Decoder struct {
 	r io.Reader
 }
 
+// NewDecoder returns a new decoder.
+func NewDecoder(r io.Reader) *Decoder {
+	return &Decoder{
+		r: r,
+	}
+}
+
 // Decode parses a block from the reader.
 func (d *Decoder) Decode(b *Block) (err error) {
+	defer Error.WrapP(&err)
+
 	cb := make([]byte, 1)
 
 	_, err = io.ReadFull(d.r, cb)
@@ -245,7 +253,10 @@ func (d *Decoder) Decode(b *Block) (err error) {
 			return
 		}
 
-		b.Size = binary.LittleEndian.Uint64(b.Data)
+		buf := [4]byte{}
+		offset := len(buf) - len(b.Data)
+		copy(buf[offset:], b.Data)
+		b.Size = uint64(binary.BigEndian.Uint32(buf[:])) + 1
 
 		b.resize(b.Size)
 
@@ -261,7 +272,12 @@ func (d *Decoder) Decode(b *Block) (err error) {
 			return
 		}
 
-		b.Size = binary.LittleEndian.Uint64(b.Data)
+		buf := [2]byte{}
+		offset := len(buf) - len(b.Data)
+		copy(buf[offset:], b.Data)
+		b.Size = uint64(binary.BigEndian.Uint16(buf[:])) + 1
+
+		b.Data = nil
 	case Null:
 		// Nothing to do in this case. The block is already in the
 		// right condition.
@@ -284,6 +300,8 @@ func NewEncoder(w io.Writer) *Encoder {
 
 // Encode write a block to the writer.
 func (e *Encoder) Encode(b *Block) (err error) {
+	defer Error.WrapP(&err)
+
 	switch b.Type {
 	case Invalid:
 		e.w.Write([]byte{Invalid})
@@ -355,23 +373,23 @@ func (e *Encoder) Encode(b *Block) (err error) {
 	case DataSizeSize:
 		var bytes uint8
 		buf := make([]byte, 4)
-		size := len(b.Data)
+		size := len(b.Data) - 1
 
 		if size < 1<<8 {
 			bytes = 1
-			buf[0] = uint8(size)
-			buf = buf[:1]
+			buf[3] = uint8(size)
+			buf = buf[3:]
 		} else if size < 1<<16 {
 			bytes = 2
-			binary.LittleEndian.PutUint16(buf[:2], uint16(size))
-			buf = buf[:2]
+			binary.BigEndian.PutUint16(buf[2:], uint16(size))
+			buf = buf[2:]
 		} else if size < 1<<24 {
 			bytes = 3
-			binary.LittleEndian.PutUint32(buf[:4], uint32(size))
-			buf = buf[:3]
+			binary.BigEndian.PutUint32(buf, uint32(size))
+			buf = buf[1:]
 		} else {
 			bytes = 4
-			binary.LittleEndian.PutUint32(buf[:4], uint32(size))
+			binary.BigEndian.PutUint32(buf, uint32(size))
 		}
 
 		cb, err := New(b.Type, bytes)
@@ -403,7 +421,7 @@ func (e *Encoder) Encode(b *Block) (err error) {
 			buf = buf[:1]
 		} else {
 			bytes = 2
-			binary.LittleEndian.PutUint16(buf[:2], uint16(b.Size-1))
+			binary.BigEndian.PutUint16(buf[:2], uint16(b.Size-1))
 			buf = buf[:2]
 		}
 

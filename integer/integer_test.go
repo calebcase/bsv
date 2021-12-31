@@ -139,10 +139,8 @@ func TestEncodeDecode(t *testing.T) {
 
 	tcs := []TC{
 		{
-			name: "0",
-			schema: Schema{
-				Bits: 64,
-			},
+			name:   "0",
+			schema: Schema{},
 			blk: &Block{
 				Value: []byte{
 					0b0000_0000,
@@ -154,10 +152,8 @@ func TestEncodeDecode(t *testing.T) {
 			},
 		},
 		{
-			name: "1",
-			schema: Schema{
-				Bits: 64,
-			},
+			name:   "1",
+			schema: Schema{},
 			blk: &Block{
 				Value: []byte{
 					0b0000_0001,
@@ -171,7 +167,6 @@ func TestEncodeDecode(t *testing.T) {
 		{
 			name: "+1",
 			schema: Schema{
-				Bits:   64,
 				Signed: true,
 			},
 			blk: &Block{
@@ -187,7 +182,6 @@ func TestEncodeDecode(t *testing.T) {
 		{
 			name: "-1",
 			schema: Schema{
-				Bits:   64,
 				Signed: true,
 			},
 			blk: &Block{
@@ -203,7 +197,6 @@ func TestEncodeDecode(t *testing.T) {
 		{
 			name: "-63",
 			schema: Schema{
-				Bits:   64,
 				Signed: true,
 			},
 			blk: &Block{
@@ -219,7 +212,6 @@ func TestEncodeDecode(t *testing.T) {
 		{
 			name: "+63",
 			schema: Schema{
-				Bits:   64,
 				Signed: true,
 			},
 			blk: &Block{
@@ -235,7 +227,6 @@ func TestEncodeDecode(t *testing.T) {
 		{
 			name: "+4095",
 			schema: Schema{
-				Bits:   64,
 				Signed: true,
 			},
 			blk: &Block{
@@ -253,7 +244,6 @@ func TestEncodeDecode(t *testing.T) {
 		{
 			name: "-524287",
 			schema: Schema{
-				Bits:   64,
 				Signed: true,
 			},
 			blk: &Block{
@@ -271,14 +261,14 @@ func TestEncodeDecode(t *testing.T) {
 			},
 		},
 		{
-			name: "-26187124863169134960105517574620793217733136368344518315866330944769070371237396439066160738607233257207093473020480568073738052367083144426628220715007",
+			name: "-6703903964971298549787012499102923063739682910296196688861780721860882015036773488400937149083451713845015929093243025426876941405973284973216824503042047",
 			schema: Schema{
-				Bits:   504,
 				Signed: true,
 			},
 			blk: &Block{
 				Value: []byte{
 					0b0111_1111,
+					0b1111_1111,
 					0b1111_1111,
 					0b1111_1111,
 					0b1111_1111,
@@ -409,6 +399,7 @@ func TestEncodeDecode(t *testing.T) {
 				0b1111_1111,
 				0b1111_1111,
 				0b1111_1111,
+				0b1111_1111,
 			},
 		},
 	}
@@ -457,7 +448,6 @@ func BenchmarkEncode(b *testing.B) {
 	ce := control.NewEncoder(buf)
 
 	schema := Schema{
-		Bits:   64,
 		Signed: true,
 	}
 	enc := NewEncoder(schema, ce)
@@ -493,7 +483,6 @@ func BenchmarkDecode(b *testing.B) {
 		cd := control.NewDecoder(buf)
 
 		schema := Schema{
-			Bits:   64,
 			Signed: true,
 		}
 		dec := NewDecoder(schema, cd)

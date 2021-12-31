@@ -10,15 +10,15 @@ type Type = byte
 
 // Control Block Types
 var (
-	Invalid      Type = 0b0000_0000
 	Data         Type = 0b1000_0000
 	DataSize     Type = 0b0100_0000
 	Data1        Type = 0b0010_0000
 	Data2        Type = 0b0001_0000
 	Skip         Type = 0b0000_1000
 	DataSizeSize Type = 0b0000_0100
-	SkipSizeSize Type = 0b0000_0010
+	SkipSize     Type = 0b0000_0010
 	Null         Type = 0b0000_0001
+	Empty        Type = 0b0000_0000
 )
 
 // Control Block Masks
@@ -29,14 +29,12 @@ var (
 	data2Mask        byte = 0b1111_0000
 	skipMask         byte = 0b1111_1000
 	dataSizeSizeMask byte = 0b1111_1100
-	skipSizeSizeMask byte = 0b1111_1110
+	skipSizeMask     byte = 0b1111_1110
 )
 
 // TypeString returns the string name for the type.
 func TypeString(t Type) string {
 	switch t {
-	case Invalid:
-		return "Invalid"
 	case Data:
 		return "Data"
 	case DataSize:
@@ -49,22 +47,20 @@ func TypeString(t Type) string {
 		return "Skip"
 	case DataSizeSize:
 		return "Data Size Size"
-	case SkipSizeSize:
-		return "Skip Size Size"
+	case SkipSize:
+		return "Skip Size"
 	case Null:
 		return "Null"
+	case Empty:
+		return "Empty"
 	}
 
-	return "Impossible"
+	return "Invalid"
 }
 
 // New returns a configured control byte.
 func New(t Type, value uint8) (b byte, err error) {
 	switch t {
-	case Invalid:
-		err = Error.New("refusing to create invalid block")
-
-		return
 	case Data:
 		if value > 127 {
 			err = Error.New("value too large: %d", value)
@@ -74,12 +70,13 @@ func New(t Type, value uint8) (b byte, err error) {
 
 		b = (^dataMask & value) | Data
 	case DataSize:
-		if value > 63 {
+		if value > 64 {
 			err = Error.New("value too large: %d", value)
 
 			return
 		}
 
+		value = value - 1
 		b = (^dataSizeMask & value) | DataSize
 	case Data1:
 		if value > 31 {
@@ -115,7 +112,7 @@ func New(t Type, value uint8) (b byte, err error) {
 
 		value = value - 1
 		b = (^dataSizeSizeMask & value) | DataSizeSize
-	case SkipSizeSize:
+	case SkipSize:
 		if value > 2 {
 			err = Error.New("value too large: %d", value)
 
@@ -123,9 +120,11 @@ func New(t Type, value uint8) (b byte, err error) {
 		}
 
 		value = value - 1
-		b = (^skipSizeSizeMask & value) | SkipSizeSize
+		b = (^skipSizeMask & value) | SkipSize
 	case Null:
 		b = Null
+	case Empty:
+		b = Empty
 	}
 
 	return
@@ -140,7 +139,7 @@ func Parse(b byte) (t Type, value uint8, err error) {
 	} else if b&dataSizeMask == DataSize {
 		v := b & ^dataSizeMask
 
-		return DataSize, v, nil
+		return DataSize, v + 1, nil
 	} else if b&data1Mask == Data1 {
 		v := b & ^data1Mask
 
@@ -157,15 +156,17 @@ func Parse(b byte) (t Type, value uint8, err error) {
 		v := b & ^dataSizeSizeMask
 
 		return DataSizeSize, v + 1, nil
-	} else if b&skipSizeSizeMask == SkipSizeSize {
-		v := b & ^skipSizeSizeMask
+	} else if b&skipSizeMask == SkipSize {
+		v := b & ^skipSizeMask
 
-		return SkipSizeSize, v + 1, nil
+		return SkipSize, v + 1, nil
 	} else if b == Null {
 		return Null, 0, nil
+	} else if b == Empty {
+		return Empty, 0, nil
 	}
 
-	return Invalid, 0, Error.New("invalid control byte: %08b", b)
+	return 0, 0, Error.New("invalid control byte: %08b", b)
 }
 
 // Block is a block.
@@ -216,8 +217,6 @@ func (d *Decoder) Decode(b *Block) (err error) {
 	b.Size = 0
 
 	switch t {
-	case Invalid:
-		panic("invalid block detected when an error should have prevented it")
 	case Data:
 		b.Data = append(b.Data, byte(v))
 	case DataSize:
@@ -264,7 +263,7 @@ func (d *Decoder) Decode(b *Block) (err error) {
 		if err != nil {
 			return
 		}
-	case SkipSizeSize:
+	case SkipSize:
 		b.resize(uint64(v))
 
 		_, err = io.ReadFull(d.r, b.Data)
@@ -278,7 +277,7 @@ func (d *Decoder) Decode(b *Block) (err error) {
 		b.Size = uint64(binary.BigEndian.Uint16(buf[:])) + 1
 
 		b.Data = nil
-	case Null:
+	case Null, Empty:
 		// Nothing to do in this case. The block is already in the
 		// right condition.
 	}
@@ -303,8 +302,6 @@ func (e *Encoder) Encode(b *Block) (err error) {
 	defer Error.WrapP(&err)
 
 	switch b.Type {
-	case Invalid:
-		e.w.Write([]byte{Invalid})
 	case Data:
 		cb, err := New(b.Type, b.Data[0])
 		if err != nil {
@@ -411,7 +408,7 @@ func (e *Encoder) Encode(b *Block) (err error) {
 		if err != nil {
 			return err
 		}
-	case SkipSizeSize:
+	case SkipSize:
 		var bytes uint8
 		buf := make([]byte, 2)
 
@@ -441,6 +438,11 @@ func (e *Encoder) Encode(b *Block) (err error) {
 		}
 	case Null:
 		_, err = e.w.Write([]byte{Null})
+		if err != nil {
+			return err
+		}
+	case Empty:
+		_, err = e.w.Write([]byte{Empty})
 		if err != nil {
 			return err
 		}

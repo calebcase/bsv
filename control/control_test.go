@@ -27,7 +27,7 @@ func TestControl(t *testing.T) {
 		{
 			b:   0b0100_0000,
 			t:   DataSize,
-			v:   0,
+			v:   1,
 			err: false,
 		},
 		{
@@ -56,7 +56,7 @@ func TestControl(t *testing.T) {
 		},
 		{
 			b:   0b0000_0010,
-			t:   SkipSizeSize,
+			t:   SkipSize,
 			v:   1,
 			err: false,
 		},
@@ -68,9 +68,9 @@ func TestControl(t *testing.T) {
 		},
 		{
 			b:   0b0000_0000,
-			t:   Invalid,
+			t:   Empty,
 			v:   0,
-			err: true,
+			err: false,
 		},
 		// Non-zero Values:
 		{
@@ -82,7 +82,7 @@ func TestControl(t *testing.T) {
 		{
 			b:   0b0110_1010,
 			t:   DataSize,
-			v:   42,
+			v:   43,
 			err: false,
 		},
 		{
@@ -111,7 +111,7 @@ func TestControl(t *testing.T) {
 		},
 		{
 			b:   0b0000_0011,
-			t:   SkipSizeSize,
+			t:   SkipSize,
 			v:   2,
 			err: false,
 		},
@@ -177,14 +177,14 @@ func TestEncodeDecode(t *testing.T) {
 				Type: DataSize,
 				Data: []byte{0x00}, // 0
 			},
-			data: []byte{0b0100_0001, 0x00},
+			data: []byte{0b0100_0000, 0x00},
 		},
 		{
 			blk: &Block{
 				Type: DataSize,
 				Data: []byte{'a', 'b', 'c', 'd'},
 			},
-			data: []byte{0b0100_0100, 'a', 'b', 'c', 'd'},
+			data: []byte{0b0100_0011, 'a', 'b', 'c', 'd'},
 		},
 		{
 			blk: &Block{
@@ -217,7 +217,7 @@ func TestEncodeDecode(t *testing.T) {
 		},
 		{
 			blk: &Block{
-				Type: SkipSizeSize,
+				Type: SkipSize,
 				Size: 1 << 16, // 65536
 			},
 			data: []byte{0b0000_0011, 0xff, 0xff},

@@ -54,8 +54,6 @@ func (b *Block) UnmarshalBinary(data []byte) (err error) {
 
 // Schema for an integer.
 type Schema struct {
-	Bits uint64
-
 	Signed bool
 
 	Nullable    bool
@@ -163,7 +161,7 @@ func (e *Encoder) Encode(b *Block) (err error) {
 			Type: control.Data2,
 			Data: bytes,
 		})
-	case len(bytes) < 64: // 2^6 - 1
+	case len(bytes) <= 64: // 2^6
 		return e.ce.Encode(&control.Block{
 			Type: control.DataSize,
 			Data: bytes,

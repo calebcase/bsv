@@ -36,23 +36,23 @@ Some of the types have overlapping ranges. For example, 8-bits of data can be
 stored in either of `dz`, `d1`, `d2`, or `dzz` blocks. Encoders optimizing
 overhead will prefer the most compact type (`d1`), but they are not required
 to. This allows encoders to make trade offs for different optimization choices
-like maximizing encoding speed or minimizing mutable field causing rewrites of
-all following data.
+like maximizing encoding speed or minimizing mutable field updates causing
+rewrites of all following data.
 
-The blocking structure has the following absolute and efficient data to total
-bytes ratios. The absolute values are a direct consequence of the entire
-encodable range for that block type. The efficient values are what you would
-expect if picking the block type with the lowest overhead for the amount of
-data. For example, data with 14 to 20 bits would be stored more efficiently in
-a `d2` block rather than a `dz` or `dzz` block.
+The blocking structure has the following absolute and efficient
+data-to-total-bytes ratios. The absolute values are a direct consequence of the
+entire encodable range for that block type. The efficient values are what you
+would expect if picking the block type with the lowest overhead for the amount
+of data. For example, data with 14 to 20 bits would be stored more efficiently
+in a `d2` block rather than a `dz` or `dzz` block.
 
-| Type  | Abs. Data        | Abs. Data %    | Eff. Data         | Eff. Data %    |
-|------:|-----------------:|---------------:|------------------:|---------------:|
-| `d`   | 7 bits           | 88.5%          | 7 bits            | 88.5%          |
-| `dz`  | 1-64 bytes       | 50% to 98.4%   | 3-64 bytes        | 75% to 98.4%   |
-| `d1`  | 13 bits          | 81.3%          | 13 bits           | 81.3%          |
-| `d2`  | 20 bits          | 83.3%          | 20 bits           | 83.3%          |
-| `dzz` | 1-$2^{64}$ bytes | 33.3% to ~100% | 65-$2^{64}$ bytes | 97.0% to ~100% |
+| Type  | Abs. Data          | Abs. Data %   | Eff. Data           | Eff. Data %   |
+|------:|-------------------:|--------------:|--------------------:|--------------:|
+| `d`   | 7 bits             | 88.5%         | 7 bits              | 88.5%         |
+| `dz`  | 1 - 64 bytes       | 50% - 98.4%   | 3 - 64 bytes        | 75% - 98.4%   |
+| `d1`  | 13 bits            | 81.3%         | 13 bits             | 81.3%         |
+| `d2`  | 20 bits            | 83.3%         | 20 bits             | 83.3%         |
+| `dzz` | 1 - $2^{64}$ bytes | 33.3% - ~100% | 65 - $2^{64}$ bytes | 97.0% - ~100% |
 
 All sizes are indexed starting at 1 to maximize their effective range. To
 encode zero length data (e.g. empty string) use the [Empty](#empty) block. For
@@ -68,14 +68,6 @@ example, a size of 1 in a [Data Size](#data-size) block is encoded as
 
 Data blocks allow for 7 bits of data to be encoded directly into the block.
 Encoding up to 128 values (e.g. booleans, signed integers between -64 and +64).
-
-```
-.               .
-|0 1 2 3 4 5 6 7|
-+-+-+-+-+-+-+-+-+
-|1|    data     |
-+-+-+-+-+-+-+-+-+
-```
 
 ```
 .               .
@@ -155,10 +147,10 @@ Examples:
 
 ### Data + 1
 
-|              |                                    |
-|--------------|------------------------------------|
-| Abbreviation | `d1`                               |
-| Capacity     | $2^{5+8}$ = $2^{13}$ = 8,192 bytes |
+|              |                                     |
+|--------------|-------------------------------------|
+| Abbreviation | `d1`                                |
+| Capacity     | $2^{5+8}$ = $2^{13}$ = 8,192 values |
 
 Data + 1 blocks are two byte sequences containing data. They allow for 13 bits
 of data to be encoded with up to 8,192 values (e.g. signed integers between
@@ -174,10 +166,10 @@ of data to be encoded with up to 8,192 values (e.g. signed integers between
 
 ### Data + 2
 
-|              |                                          |
-|--------------|------------------------------------------|
-| Abbreviation | `d2`                                     |
-| Capacity     | $2^{4+8+8}$ = $2^{20}$ = 1,048,576 bytes |
+|              |                                           |
+|--------------|-------------------------------------------|
+| Abbreviation | `d2`                                      |
+| Capacity     | $2^{4+8+8}$ = $2^{20}$ = 1,048,576 values |
 
 Data + 2 blocks are three byte sequences containing data. They allow for 20
 bits of data to be encoded with up to 1,048,576 values (e.g. integers between

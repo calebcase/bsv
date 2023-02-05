@@ -16,17 +16,17 @@ available for encoding data (blanks). Data and size information is expected to
 be extracted by masking off the fixed bits. This is only the first byte
 (several control block types are multi-byte sequences).
 
-| `\| 0123 4567 \|` | Type                                  | Abbr           | Min Bytes | Max Bytes    |
-|-------------------|---------------------------------------|---------------:|----------:|-------------:|
-| `\| 1... .... \|` | [Data](#data)                         | `d`            | 1         | 1            |
-| `\| 01.. .... \|` | [Data Size](#data-size)               | `dz`           | 2         | 65           |
-| `\| 001. .... \|` | [Data + 1](#data-%2B-1)               | `d1`           | 2         | 2            |
-| `\| 0001 .... \|` | [Data + 2](#data-%2B-2)               | `d2`           | 3         | 3            |
-| `\| 0000 1... \|` | [Data Size Size](#data-size-size)     | `dzz`          | 3         | 9 + $2^{64}$ |
-| `\| 0000 01.. \|` | [Container Blocks](#container-blocks) | `cb` `cu` `ce` | 2         | ∞            |
-| `\| 0000 001. \|` | [Skip Size](#skip-size)               | `sz`           | 2         | 3            |
-| `\| 0000 0001 \|` | [Empty](#empty)                       | `e`            | 1         | 1            |
-| `\| 0000 0000 \|` | [Null](#null)                         | `n`            | 1         | 1            |
+| `\| 0123 4567 \|` | Type                              | Abbr                | Min Bytes | Max Bytes    |
+|-------------------|-----------------------------------|--------------------:|----------:|-------------:|
+| `\| 1... .... \|` | [Data](#data)                     | `d`                 | 1         | 1            |
+| `\| 01.. .... \|` | [Data Size](#data-size)           | `dz`                | 2         | 65           |
+| `\| 001. .... \|` | [Data + 1](#data--1)              | `d1`                | 2         | 2            |
+| `\| 0001 .... \|` | [Data + 2](#data--2)              | `d2`                | 3         | 3            |
+| `\| 0000 1... \|` | [Data Size Size](#data-size-size) | `dzz`               | 3         | 9 + $2^{64}$ |
+| `\| 0000 01.. \|` | [Container](#container)           | `cs` `cb` `cu` `ce` | 2         | ∞            |
+| `\| 0000 001. \|` | [Skip Size](#skip-size)           | `sz`                | 2         | 3            |
+| `\| 0000 0001 \|` | [Empty](#empty)                   | `e`                 | 1         | 1            |
+| `\| 0000 0000 \|` | [Null](#null)                     | `n`                 | 1         | 1            |
 
 Data and size embedded in the control block is extracted by masking all control
 bits to zero. For example `1|000_0001` decodes to `0000_0001` and `001|1_0001
@@ -221,7 +221,88 @@ bytes of size = 1
 size = 256
 ```
 
-### Container Blocks
+### Skip Size
+
+|              |                                                              |
+|--------------|--------------------------------------------------------------|
+| Abbreviation | `sz`                                                         |
+| Capacity     | $2^1$ = 1 to 2 bytes; $2^{(2*8)}$ = $2^{16}$ = 65,536 fields |
+
+Skip Size blocks have two parts:
+
+1. Number of bytes that contain skip
+2. Skip amount
+
+Skip Size blocks indicate that up to 65,536 contiguous fields aren't directly
+encoded in the byte stream. The specific meaning of what the skipped fields
+contain is schema and encoding dependent. This is meant to allow efficient
+encoding of sparse data (e.g. sparse matrices, delta encoded values).
+
+```
+.0              .    1          .
+|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|0 0 0 0 0 0 1|0|     amount    |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+size = 1
+```
+
+```
+.0              .    1          .        2      .
+|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|0 0 0 0 0 0 1|1|            amount             |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+size = 2
+```
+
+Example with 1 byte skip size and 16 fields of skip:
+
+```
+.0              .    1          .
+|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|0 0 0 0 0 0 1|0|0 0 0 0 1 1 1 1|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+size = 1
+skip = 16
+```
+
+### Empty
+
+|              |     |
+|--------------|-----|
+| Abbreviation | `e` |
+
+Empty blocks indicate that the field is set to the empty value (e.g. an empty
+string, integer zero).
+
+```
+.0              .
+|0 1 2 3 4 5 6 7|
++-+-+-+-+-+-+-+-+
+|0 0 0 0 0 0 0 1|
++-+-+-+-+-+-+-+-+
+```
+
+### Null
+
+|              |     |
+|--------------|-----|
+| Abbreviation | `n` |
+
+Null blocks indicate that the field is set to the null value (e.g. an optional
+string).
+
+```
+.0              .
+|0 1 2 3 4 5 6 7|
++-+-+-+-+-+-+-+-+
+|0 0 0 0 0 0 0 0|
++-+-+-+-+-+-+-+-+
+```
+
+### Container
 
 Container blocks signal the start and end of an embedded BSV. There are two
 types of container blocks for known size (bounded) and unknown size (unbounded)
@@ -229,7 +310,7 @@ situations.
 
 | `\| 0123 4567 \|` | Type                                        | Abbr |
 |-------------------|---------------------------------------------|-----:|
-| `\| 0000 0111 \|` | Reserved                                    |      |
+| `\| 0000 0111 \|` | [Container Symmetric](#container-symmetric) | `cs` |
 | `\| 0000 0101 \|` | [Container Bounded](#container-bounded)     | `cb` |
 | `\| 0000 0110 \|` | [Container Unbounded](#container-unbounded) | `cu` |
 | `\| 0000 0100 \|` | [Container End](#container-unbounded)       | `ce` |
@@ -397,279 +478,191 @@ An unbounded block with an embedded BSV (e.g. an array of integers):
         * `cu` block
 ```
 
-### Skip Size
+#### Container Symmetric
 
-|              |                                                              |
-|--------------|--------------------------------------------------------------|
-| Abbreviation | `sz`                                                         |
-| Capacity     | $2^1$ = 1 to 2 bytes; $2^{(2*8)}$ = $2^{16}$ = 65,536 fields |
+|              |      |
+|--------------|------|
+| Abbreviation | `cs` |
 
-Skip Size blocks have two parts:
+Container Symmetric blocks indicate that the next field will be encoded
+symmetrically. Symmetric encoding makes the field readable in reverse (as well
+as forwards).
 
-1. Number of bytes that contain skip
-2. Skip amount
+Container Symmetric blocks have 5 parts:
 
-Skip Size blocks indicate that up to 65,536 contiguous fields aren't directly
-encoded in the byte stream. The specific meaning of what the skipped fields
-contain is schema and encoding dependent. This is meant to allow efficient
-encoding of sparse data (e.g. sparse matrices, delta encoded values).
+1. Container Symmetric Control Block
+2. Forward Control Blocks
+3. Data
+4. Reverse Control Blocks
+5. Container Symmetric Control Block
+
+* Reverse decoding should processes control and data the same way as forward
+  with the exception that control blocks with data bits are prepended rather
+  than appended.
+* The same number and type of control blocks must be read when processing in
+  reverse as forward. Any data bits must be identical between the forward and
+  reverse control blocks.
+
+All single byte control blocks are already symmetric and do not have a
+symmetric specific form. Explicitly these are the control blocks:
+
+* Data
+* Empty
+* Null
+
+Container Unbounded blocks are also already symmetric. This means Container
+Unbounded blocks are identical to their non-symmetric form in presentation. The
+difference is that during reverse decoding the pair matching logic is inverted.
+
+##### Container Symmetric Data Size
+
+|              |            |
+|--------------|------------|
+| Abbreviation | `(dz)`     |
+| Capacity     | 1-64 bytes |
 
 ```
-.0              .    1          .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0 0 0 0 0 0 1|0|     amount    |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-size = 1
+.0              .    1         1.               .               .               .               .
+|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|               |               |               |               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|0 0 0 0 0 1|1 1|0 1|   size    |         1-64 bytes data       |0 1|   size    |0 0 0 0 0 1|1 1|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        ^                                                                               ^
+        |                                                                               |
+        * `cs` block                                                                    * `cs` block
 ```
 
+Example Symmetric Data Size block with size 2:
+
 ```
-.0              .    1          .        2      .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0 0 0 0 0 0 1|1|            amount             |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+.0              .    1          .        2      .            3  .               .4              .
+|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|4 5 6 7 8 9 0 1|2 3 4 5 6 7 8 9|0 1 2 3 4 5 6 7|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|0 0 0 0 0 1|1 1|0 1|0 0 0 0 0 1|        2 bytes data           |0 1|0 0 0 0 0 1|0 0 0 0 0 1|1 1|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 size = 2
 ```
 
-Example with 1 byte skip size and 16 fields of skip:
+##### Container Symmetric Data + 1
+
+|              |         |
+|--------------|---------|
+| Abbreviation | `(d1)`  |
+| Capacity     | 13 bits |
+
+A Symmetric Data + 1 block:
 
 ```
-.0              .    1          .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0 0 0 0 0 0 1|0|0 0 0 0 1 1 1 1|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-size = 1
-skip = 16
+.0              .    1          .        2      .            3  .               .
+|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|4 5 6 7 8 9 0 1|2 3 4 5 6 7 8 9|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|0 0 0 0 0 1|1 1|0 0 1|   data  |      data     |0 0 1|  data   |0 0 0 0 0 1|1 1|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
-### Empty
+##### Container Symmetric Data + 2
 
-|              |     |
-|--------------|-----|
-| Abbreviation | `e` |
+|              |         |
+|--------------|---------|
+| Abbreviation | `(d2)`  |
+| Capacity     | 20 bits |
 
-Empty blocks indicate that the field is set to the empty value (e.g. an empty
-string, integer zero).
-
-```
-.0              .
-|0 1 2 3 4 5 6 7|
-+-+-+-+-+-+-+-+-+
-|0 0 0 0 0 0 0 1|
-+-+-+-+-+-+-+-+-+
-```
-
-### Null
-
-|              |     |
-|--------------|-----|
-| Abbreviation | `n` |
-
-Null blocks indicate that the field is set to the null value (e.g. an optional
-string).
+A Symmetric Data + 2 block:
 
 ```
-.0              .
-|0 1 2 3 4 5 6 7|
-+-+-+-+-+-+-+-+-+
-|0 0 0 0 0 0 0 0|
-+-+-+-+-+-+-+-+-+
+.0              .    1          .        2      .            3  .               .4              .
+|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|4 5 6 7 8 9 0 1|2 3 4 5 6 7 8 9|0 1 2 3 4 5 6 7|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|0 0 0 0 0 1|1 1|0 0 0 1|                  data                 |0 0 0 1| data  |0 0 0 0 0 1|1 1|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
-## Symmetric Blocks
+##### Container Symmetric Data Size Size
 
-Symmetric blocks can be decoded forwards and reverse. To do so they embed
-multi-byte blocks within another type. A naive forward-only decoder can extract
-structure and data bits even when symmetric blocks are present, but it cannot
-know for certain that the data contains the symmetric closing block in it
-without an additional schema (although a heuristic could make a good guess).
-
-* all symmetric blocks have a start and end control block
-* (most) end blocks use some of the data bits of the start block
-* data and size bits are always read fowards, only the control block processing
-  proceeds in reverse
-* within byte bits are not reversed, only the order of the control blocks
-
-All single byte sequences are unchanged when symmetric.
-
-### Symmetric Data Size
-
-```
-.0              .    1         1.               .5       6      .            7  .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|               |6 7 8 9 0 1 2 3|4 5 6 7 8 9 0 1|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0 1|   size    |                1-63 bytes data                |0 1|   size    |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-```
-
-Example Symmetric Data Size block with size 3 (8 + 8 = 16 data bits):
-
-```
-.0              .    1          .        2      .            3  .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|4 5 6 7 8 9 0 1|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0 1|0 0 0 0 1 0|          2 bytes data         |0 1|0 0 0 0 1 0|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-size = 3
-```
-
-Note how the size includes enough bytes to contain the end block. This allows
-decoder reading forward to properly find the next field. Decoding in reverse
-proceeds in the same fashion: decode last byte, read size of 3, seek backwards
-3 bytes to next field.
-
-### Symmetric Data + 1
-
-A Symmetric Data + 1 block (5 + 5 = 10 data bits):
-
-```
-.0              .    1          .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0 0 1|  data   |0 0 1|  data   |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-```
-
-### Symmetric Data + 2
-
-A Symmetric Data + 2 block (4 + 8 + 4 = 16 data bits):
-
-```
-.0              .    1          .        2      .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0 0 0 1|         data          |0 0 0 1| data  |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-```
-
-### Symmetric Data Size Size
+|              |                                                          |
+|--------------|----------------------------------------------------------|
+| Abbreviation | `(dzz)`                                                  |
+| Capacity     | $2^3$ = 1 to 8 bytes size; $2^{8*8}$ = $2^{64}$ = 16 EiB |
 
 A Symmetric Data Size Size block:
 
 ```
-.0              .    1         1.               .               .               .               .               .               .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|               |               |               |               |               |               |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+
-|0 0 0 0 1|  Z  |         1-8 bytes size        |        1 - ~16 EiB data       |         1-8 bytes size        |0 0 0 0 1|  Z  |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+
+.0              .    1          .        2     2.               .               .               .               .               .               .               .
+|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|               |               |               |               |               |               |               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|0 0 0 0 0 1|1 1|0 0 0 0 1|  Z  |         1-8 bytes size        |        1 - ~16 EiB data       |         1-8 bytes size        |0 0 0 0 1|  Z  |0 0 0 0 0 1|1 1|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 Z: bytes of size
 ```
 
 Example block with 1 byte of size and 254 bytes of data:
 
 ```
-                                                                 2   2                   2
-                                                                 0   0                   0
-.0              .    1         1.        2     2.               .4   5          .        6      .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|               |8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0 0 0 0 1|0 0 0|1 1 1 1 1 1 1 1|           254 bytes           |1 1 1 1 1 1 1 1|0 0 0 0 1|0 0 0|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-             ^          ^                                               ^                    ^
-             |          |                                               |                    |
-             |          \                                               /                    |
-             |           `---------------* size = 256 *----------------'                     |
-             \                                                                               /
-              `-----------------------* bytes of size = 1 *---------------------------------'
+                                                                                 2               2                   2
+                                                                                 0               0                   0
+.0              .    1         1.        2     2.               .               .7              .8              .    9          .
+|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|               |               |2 3 4 5 6 7 8 9|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|0 0 0 0 0 1|1 1|0 0 0 0 1|0 0 0|1 1 1 1 1 1 1 1|           256 bytes           |1 1 1 1 1 1 1 1|0 0 0 0 1|0 0 0|0 0 0 0 0 1|1 1|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+                             ^          ^                                               ^                    ^
+                             |          |                                               |                    |
+                             |          \                                               /                    |
+                             |           `---------------* size = 256 *----------------'                     |
+                             \                                                                               /
+                              `-----------------------* bytes of size = 1 *---------------------------------'
 ```
 
-### Symmetric Container
+##### Container Symmetric Container
 
-#### Symmetric Bounded
+###### Symmetric Bounded
 
 ```
-.0              .    1         1.               .               .               .               .               .               .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|               |               |               |               |               |               |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+
-|0 0 0 0 0 1|0 1|       size as BSV field       |              BSV              |       size as BSV field       |0 0 0 0 0 1|0 1|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+
+.0              .    1         1.               .               .               .               .               .               .               .               .
+|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|               |               |               |               |               |               |               |               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|0 0 0 0 0 1|1 1|0 0 0 0 0 1|0 1|       size as BSV field       |              BSV              |       size as BSV field       |0 0 0 0 0 1|0 1|0 0 0 0 0 1|1 1|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
-NOTE: The size field in the closing must also be symmetric.
+NOTE: The size field must also be symmetric.
 
 Example block with size 3 (1 data byte):
 
 ```
-.0              .    1          .        2      .            3  .               .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|4 5 6 7 8 9 0 1|2 3 4 5 6 7 8 9|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0 0 0 0 0 1|0 1|0|0 0 0 0 0 1 0|1|0 0 0 0 0 0 1|1|0 0 0 0 0 1 0|0 0 0 0 0 1|0 1|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        ^               ^               ^               ^               ^
-        |               |               |               |               |
-        |               |               * bsv           |               |
-        |               \                               /               |
-        |                `--* size = 3 in `d` block *--'                |
-        \                                                               /
-         `------------------------* `cb` block *-----------------------'
+.0              .    1          .        2      .            3  .               .4              .    5          .
+|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|4 5 6 7 8 9 0 1|2 3 4 5 6 7 8 9|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|0 0 0 0 0 1|1 1|0 0 0 0 0 1|0 1|1|0 0 0 0 0 0 0|1|0 0 0 0 0 0 1|1|0 0 0 0 0 0 0|0 0 0 0 0 1|0 1|0 0 0 0 0 1|1 1|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+                        ^               ^               ^               ^               ^
+                        |               |               |               |               |
+                        |               |               * bsv           |               |
+                        |               \                               /               |
+                        |                `--* size = 1 in `d` block *--'                |
+                        \                                                               /
+                         `------------------------* `cb` block *-----------------------'
 ```
 
-Embedded Empty and Null blocks must be expanded to make space for the closing
-blocks:
-
-```
-.0              .    1          .        2      .            3  .               .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|4 5 6 7 8 9 0 1|2 3 4 5 6 7 8 9|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0 0 0 0 0 1|0 1|0|0 0 0 0 0 1 0|0 0 0 0 0 0 0 1|1|0 0 0 0 0 1 0|0 0 0 0 0 1|0 1|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-```
+##### Container Symmetric Skip Size
 
 ```
 .0              .    1          .        2      .            3  .               .
 |0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|4 5 6 7 8 9 0 1|2 3 4 5 6 7 8 9|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0 0 0 0 0 1|0 1|0|0 0 0 0 0 1 0|0 0 0 0 0 0 0 0|1|0 0 0 0 0 1 0|0 0 0 0 0 1|0 1|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|0 0 0 0 0 1|1 1|0 0 0 0 0 0 1|0|     amount    |0 0 0 0 0 0 1|0|0 0 0 0 0 1|1 1|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+size = 1
 ```
 
-But, we note (as we did in [Container Bounded](#container-bounded)) that this
-may be unnecessary if the schema used by the encoder/decoder is sufficiently
-expressive.
-
-#### Symmetric Unbounded
+Example block with size 1 (skip 16 fields):
 
 ```
-.0              .    1         1.               .               .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|               |               |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+
-|0 0 0 0 0 1|1 0|              BSV              |0 0 0 0 0 1|0 0|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+++++++++++++++++-+-+-+-+-+-+-+-+
-        ^                                               ^
-        |                                               |
-        * `cu` block                                    * `ce` block
-```
-
-Symmetric Unbounded blocks do not need additional closing blocks like the fixed
-sized blocks do. The [Container End](#container-end) block is sufficient as the
-closing block. This means Symmetric Unbounded blocks are identical to their
-non-symmetric form in presentation. The difference is that during reverse
-decoding the pair matching logic is inverted.
-
-### Symmetric Skip Size
-
-```
-.0              .    1          .        2      .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0 0 0 0 0 0 1|1|     amount    |0 0 0 0 0 0 1|1|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-size = 2
-```
-
-NOTE: Skip Size with size of 1 byte is not possible. There is insufficient
-space to put the embedded closing Skip Size block.
-
-Example block with size 2 (skip 16 fields):
-
-```
-.0              .    1          .        2      .
-|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|0 0 0 0 0 0 1|1|0 0 0 0 1 1 1 1|0 0 0 0 0 0 1|1|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-size = 2
+.0              .    1          .        2      .            3  .               .
+|0 1 2 3 4 5 6 7|8 9 0 1 2 3 4 5|6 7 8 9 0 1 2 3|4 5 6 7 8 9 0 1|2 3 4 5 6 7 8 9|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|0 0 0 0 0 1|1 1|0 0 0 0 0 0 1|0|0 0 0 0 1 1 1 1|0 0 0 0 0 0 1|0|0 0 0 0 0 1|1 1|
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+size = 1
 skip = 16
 ```

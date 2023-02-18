@@ -1,5 +1,13 @@
 # BSV
 
+> block separated values
+
+BSV aims to be be a compact, typed binary format compatible with tabular
+formats like CSV, TSV, TAB and structured formats like JSON and JSON lines.
+Data stored in those formats should easily convert to and from the BSV format.
+
+## Control Blocks
+
 BSV [Control Blocks](#control-blocks) use a prefix coding scheme to indicate
 the type of the current byte (which then further indicates how many bytes the
 field contains). The intention is to minimize signaling overhead and pack as
@@ -8,8 +16,6 @@ much data directly into the control block as possible.
 BSV does not specify the contents of the data bits. The meaning of the data
 bits must come from some additional schema or specification supplied to the
 encoder/decoder.
-
-## Control Blocks
 
 This diagram indicates the bits that are fixed (filled in) vs bits that are
 available for encoding data (blanks). Data and size information is expected to

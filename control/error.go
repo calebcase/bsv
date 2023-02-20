@@ -1,6 +1,6 @@
 package control
 
-import "github.com/zeebo/errs"
+import "github.com/calebcase/oops"
 
-// Error is the class for this package's errors.
-var Error = errs.Class("control")
+// Error is the namespace for this package's errors.
+var Error = oops.Namespace("control")

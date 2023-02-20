@@ -60,10 +60,10 @@ in a `d2` block rather than a `dz` or `dzz` block.
 | `d2`  | 20 bits            | 83.3%         | 20 bits             | 83.3%         |
 | `dzz` | 1 - $2^{64}$ bytes | 33.3% - ~100% | 65 - $2^{64}$ bytes | 97.0% - ~100% |
 
-All sizes are indexed starting at 1 to maximize their effective range. To
-encode zero length data (e.g. empty string) use the [Empty](#empty) block. For
-example, a size of 1 in a [Data Size](#data-size) block is encoded as
-`01|00_0000` and size 2 as `01|00_0001`.
+All sizes are big-endian and indexed starting at 1 to maximize their effective
+range. To encode zero length data (e.g. empty string) use the [Empty](#empty)
+block. For example, a size of 1 in a [Data Size](#data-size) block is encoded
+as `01|00_0000` and size 2 as `01|00_0001`.
 
 ### Data
 
@@ -326,7 +326,7 @@ situations.
 |              |                                                                                           |
 |--------------|-------------------------------------------------------------------------------------------|
 | Abbreviation | `cb`                                                                                      |
-| Capacity     | $2^{(2^{64}*8)}$ = $2^{(2^{64}*2^3)}$ = $2^{2^{(64+3)}}$ = $2^{2^{68}}$ = $2^{136}$ bytes |
+| Capacity     | $2^{(2^{64}*8)}$ = $2^{(2^{64}*2^3)}$ = $2^{2^{(64+3)}}$ = $2^{2^{67}}$ = $2^{134}$ bytes |
 
 Bounded containers have 3 parts:
 
